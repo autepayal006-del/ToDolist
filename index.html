@@ -308,6 +308,35 @@
 
       <!-- Task Items Display Container -->
       <section class="task-list-section" aria-label="Task List">
+        <!-- Task Loading Spinner State -->
+        <div class="task-loading-state" id="taskLoadingState" style="display: none;" aria-live="polite">
+          <div class="spinner-circle" aria-hidden="true"></div>
+          <span class="loading-label">Synchronizing with Supabase...</span>
+        </div>
+
+        <!-- Task Database Error Banner -->
+        <div class="task-error-state" id="taskErrorState" style="display: none;" role="alert" aria-live="assertive">
+          <div class="error-badge-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <div class="error-text-wrap">
+            <h3 class="error-title" id="errorTitle">Database Connection Notice</h3>
+            <p class="error-subtitle" id="errorMessage">Unable to communicate with the tasks database. Please check your network or server configuration.</p>
+          </div>
+          <button type="button" class="btn-retry-sync" id="retryFetchBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            <span>Retry Connection</span>
+          </button>
+        </div>
+
         <ul class="task-list" id="taskList" role="list" aria-live="polite">
           <!-- Dynamically populated by script.js -->
         </ul>
@@ -325,8 +354,8 @@
       <!-- Bottom Interactive Command Bar -->
       <footer class="task-footer">
         <div class="footer-left">
-          <span class="pulse-indicator" aria-hidden="true"></span>
-          <span class="sync-status">Local Cloud Sync: <strong>Active & Saved</strong></span>
+          <span class="pulse-indicator" id="syncPulse" aria-hidden="true"></span>
+          <span class="sync-status" id="syncStatus">Database: <strong>Connecting...</strong></span>
         </div>
         <div class="footer-right">
           <span class="shortcut-tip">Press <kbd>/</kbd> to Search/Add &bull; <kbd>?</kbd> for Shortcuts</span>
@@ -336,7 +365,7 @@
 
     <!-- Global App Footer -->
     <div class="app-credit">
-      <p>TaskMate Pro &bull; Next-Gen Task Management Portal &bull; Designed with Vanilla HTML, CSS & JS</p>
+      <p>TaskMate Pro &bull; Next-Gen Task Management Portal &bull; Powered by Supabase PostgreSQL</p>
     </div>
   </div>
 
@@ -396,6 +425,12 @@
 
   <!-- Toast Micro-Notification Container -->
   <div class="toast-container" id="toastContainer" aria-live="assertive" aria-atomic="true"></div>
+
+  <!-- Supabase Official JS SDK Client (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <!-- Centralized Supabase Configuration -->
+  <script src="supabase-config.js"></script>
 
   <!-- Application Logic -->
   <script src="script.js"></script>

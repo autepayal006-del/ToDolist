@@ -18,8 +18,7 @@
 (function () {
   'use strict';
 
-  // --- Storage Keys ---
-  const STORAGE_KEY = 'taskmate_pro_tasks_v2';
+  // --- Storage Keys (Theme preference only) ---
   const THEME_STORAGE_KEY = 'taskmate_theme_mode';
 
   // --- State Variables ---
@@ -28,6 +27,9 @@
   let searchQuery = '';
   let sortBy = 'newest'; // 'newest' | 'oldest' | 'priority' | 'alphabetical'
   let editingTaskId = null;
+  let isLoading = false;
+  let isSubmitting = false;
+  let databaseError = null;
 
   // --- DOM Elements ---
   const htmlRoot = document.documentElement;
@@ -41,17 +43,27 @@
   const taskForm = document.getElementById('taskForm');
   const taskInput = document.getElementById('taskInput');
   const clearInputBtn = document.getElementById('clearInputBtn');
+  const addTaskBtn = document.getElementById('addTaskBtn');
   const inputFeedback = document.getElementById('inputFeedback');
   const searchInput = document.getElementById('searchInput');
   const sortSelect = document.getElementById('sortSelect');
 
-  // Task List & Empty State
+  // Task List, Loading, Error & Empty States
   const taskList = document.getElementById('taskList');
   const emptyState = document.getElementById('emptyState');
   const emptyTitle = document.getElementById('emptyTitle');
   const emptySubtitle = document.getElementById('emptySubtitle');
   const emptyIcon = document.getElementById('emptyIcon');
   const clearCompletedBtn = document.getElementById('clearCompletedBtn');
+  const taskLoadingState = document.getElementById('taskLoadingState');
+  const taskErrorState = document.getElementById('taskErrorState');
+  const errorTitle = document.getElementById('errorTitle');
+  const errorMessage = document.getElementById('errorMessage');
+  const retryFetchBtn = document.getElementById('retryFetchBtn');
+
+  // Sync Status Elements
+  const syncPulse = document.getElementById('syncPulse');
+  const syncStatus = document.getElementById('syncStatus');
 
   // Metric Displays
   const totalTasksCount = document.getElementById('totalTasksCount');
@@ -214,30 +226,136 @@
   }
 
   // =========================================================================
-  // --- 4. LocalStorage Persistence ---
+  // --- 4. Supabase Database Synchronization & API Client ---
   // =========================================================================
-  function loadTasks() {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored !== null) {
-        tasks = JSON.parse(stored);
-        if (!Array.isArray(tasks)) tasks = [];
-      } else {
-        tasks = [...DEFAULT_STARTER_TASKS];
-        saveTasks();
+  const API = {
+    async getTasks() {
+      const res = await fetch('/api/tasks', { credentials: 'same-origin' });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = new Error(data.error || 'Failed to fetch tasks from database');
+        err.code = data.code;
+        err.details = data;
+        throw err;
       }
-    } catch (err) {
-      console.warn('LocalStorage access issue:', err);
-      tasks = [...DEFAULT_STARTER_TASKS];
+      return data.tasks || [];
+    },
+
+    async createTask(payload) {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = new Error(data.error || 'Failed to create task in database');
+        err.code = data.code;
+        throw err;
+      }
+      return data.task;
+    },
+
+    async updateTask(id, payload) {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = new Error(data.error || 'Failed to update task in database');
+        err.code = data.code;
+        throw err;
+      }
+      return data.task;
+    },
+
+    async deleteTask(id) {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = new Error(data.error || 'Failed to delete task from database');
+        err.code = data.code;
+        throw err;
+      }
+      return data;
+    },
+
+    async clearCompleted() {
+      const res = await fetch('/api/tasks/clear-completed', {
+        method: 'POST',
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = new Error(data.error || 'Failed to clear completed tasks');
+        err.code = data.code;
+        throw err;
+      }
+      return data;
+    }
+  };
+
+  function setSyncStatus(state, message) {
+    if (!syncPulse || !syncStatus) return;
+    syncPulse.className = 'pulse-indicator';
+    if (state === 'loading') {
+      syncPulse.classList.add('pulse-loading');
+      syncStatus.innerHTML = `Database: <strong>${message || 'Syncing...'}</strong>`;
+    } else if (state === 'error') {
+      syncPulse.classList.add('pulse-error');
+      syncStatus.innerHTML = `Database: <strong>${message || 'Error'}</strong>`;
+    } else if (state === 'success') {
+      syncPulse.classList.add('pulse-success');
+      syncStatus.innerHTML = `Supabase Cloud: <strong>${message || 'Connected & Synced'}</strong>`;
     }
   }
 
-  function saveTasks() {
+  async function fetchTasks() {
+    isLoading = true;
+    databaseError = null;
+    setSyncStatus('loading', 'Synchronizing with Supabase...');
+
+    if (taskLoadingState) taskLoadingState.style.display = 'flex';
+    if (taskErrorState) taskErrorState.style.display = 'none';
+    if (taskList) taskList.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'none';
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      const fetchedTasks = await API.getTasks();
+      tasks = fetchedTasks || [];
+      databaseError = null;
+      if (taskLoadingState) taskLoadingState.style.display = 'none';
+      if (taskErrorState) taskErrorState.style.display = 'none';
+      setSyncStatus('success', 'Connected & Synced');
+      render();
     } catch (err) {
-      console.warn('Unable to persist tasks to localStorage:', err);
-      showToast('Could not save tasks locally (Quota or private mode).', 'danger');
+      console.error('TaskMate Database Error:', err);
+      databaseError = err;
+      if (taskLoadingState) taskLoadingState.style.display = 'none';
+      if (taskErrorState) {
+        taskErrorState.style.display = 'flex';
+        if (errorTitle) {
+          errorTitle.textContent = err.code === 'TABLE_NOT_FOUND' 
+            ? 'Database Schema Required' 
+            : (err.code === 'CONFIG_MISSING' ? 'Configuration Required' : 'Database Unavailable');
+        }
+        if (errorMessage) {
+          errorMessage.textContent = err.message || 'Unable to connect to Supabase database. Click Retry to attempt reconnecting.';
+        }
+      }
+      if (taskList) taskList.style.display = 'none';
+      if (emptyState) emptyState.style.display = 'none';
+      setSyncStatus('error', 'Connection Error');
+      showToast(err.message || 'Database connection error.', 'danger');
+    } finally {
+      isLoading = false;
     }
   }
 
@@ -396,6 +514,13 @@
   }
 
   function renderTasks() {
+    if (databaseError || isLoading) {
+      taskList.innerHTML = '';
+      taskList.style.display = 'none';
+      emptyState.style.display = 'none';
+      return;
+    }
+
     const list = getSortedAndFilteredTasks();
 
     if (list.length === 0) {
@@ -555,14 +680,16 @@
   }
 
   // =========================================================================
-  // --- 9. Task Action Handlers ---
+  // --- 9. Task Action Handlers (Connected to Supabase via Server API) ---
   // =========================================================================
-  function addTask(rawText) {
+  async function addTask(rawText) {
     const text = rawText.trim();
     if (!text) {
       showInputError('Please enter a task description before submitting.');
       return false;
     }
+
+    if (isSubmitting) return false;
 
     // Read selected Priority & Category from form
     const priorityEl = document.querySelector('input[name="taskPriority"]:checked');
@@ -570,44 +697,73 @@
     const priority = priorityEl ? priorityEl.value : 'low';
     const category = categoryEl ? categoryEl.value : 'work';
 
-    const newTask = {
-      id: generateId(),
-      text: text,
-      completed: false,
-      priority: priority,
-      category: category,
-      createdAt: Date.now()
-    };
+    isSubmitting = true;
+    if (addTaskBtn) {
+      addTaskBtn.disabled = true;
+      addTaskBtn.style.opacity = '0.6';
+    }
 
-    tasks.unshift(newTask);
-    saveTasks();
-    render();
+    try {
+      const createdTask = await API.createTask({
+        title: text,
+        priority: priority,
+        category: category
+      });
 
-    taskInput.value = '';
-    clearInputBtn.classList.remove('visible');
-    clearInputError();
-    showToast('Task added to your dashboard!', 'success');
-    return true;
+      tasks.unshift(createdTask);
+      render();
+
+      taskInput.value = '';
+      clearInputBtn.classList.remove('visible');
+      clearInputError();
+      showToast('Task saved to Supabase!', 'success');
+      return true;
+    } catch (err) {
+      console.error('Failed to create task in Supabase:', err);
+      showToast(err.message || 'Could not save task to database.', 'danger');
+      return false;
+    } finally {
+      isSubmitting = false;
+      if (addTaskBtn) {
+        addTaskBtn.disabled = false;
+        addTaskBtn.style.opacity = '';
+      }
+    }
   }
 
-  function toggleTaskComplete(id) {
+  async function toggleTaskComplete(id) {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
-    task.completed = !task.completed;
-    saveTasks();
+    const previousState = task.completed;
+    const newState = !previousState;
+
+    // Optimistic UI update
+    task.completed = newState;
+    task.is_completed = newState;
     render();
 
-    if (task.completed) {
-      showToast('Task marked as complete! 🎉', 'success');
-      triggerConfetti(45);
+    try {
+      await API.updateTask(id, { is_completed: newState });
 
-      // Check if all tasks are complete
-      if (tasks.length > 0 && tasks.every(t => t.completed)) {
-        setTimeout(() => triggerConfetti(120), 200);
+      if (newState) {
+        showToast('Task marked as complete! 🎉', 'success');
+        triggerConfetti(45);
+
+        // Check if all tasks are complete
+        if (tasks.length > 0 && tasks.every(t => t.completed)) {
+          setTimeout(() => triggerConfetti(120), 200);
+        }
+      } else {
+        showToast('Task restored to active.', 'info');
       }
-    } else {
-      showToast('Task restored to active.', 'info');
+    } catch (err) {
+      // Rollback UI on failure
+      task.completed = previousState;
+      task.is_completed = previousState;
+      render();
+      console.error('Failed to update task in Supabase:', err);
+      showToast(err.message || 'Failed to update task in database.', 'danger');
     }
   }
 
@@ -621,7 +777,7 @@
     render();
   }
 
-  function saveEditedTask(id, rawText) {
+  async function saveEditedTask(id, rawText) {
     const text = rawText.trim();
     if (!text) {
       showToast('Task text cannot be blank.', 'danger');
@@ -629,51 +785,72 @@
     }
 
     const task = tasks.find(t => t.id === id);
-    if (task) {
-      task.text = text;
-      saveTasks();
-      showToast('Task updated successfully!', 'success');
-    }
+    if (!task) return;
 
+    const previousText = task.text;
+    task.text = text;
+    task.title = text;
     editingTaskId = null;
     render();
+
+    try {
+      await API.updateTask(id, { title: text });
+      showToast('Task updated in Supabase!', 'success');
+    } catch (err) {
+      // Rollback on error
+      task.text = previousText;
+      task.title = previousText;
+      render();
+      console.error('Failed to update task title in Supabase:', err);
+      showToast(err.message || 'Failed to update task in database.', 'danger');
+    }
   }
 
-  function deleteTask(id) {
+  async function deleteTask(id) {
     const taskIndex = tasks.findIndex(t => t.id === id);
     if (taskIndex === -1) return;
 
+    const removedTask = tasks[taskIndex];
     const itemEl = document.querySelector(`.task-item[data-id="${id}"]`);
-    if (itemEl) {
-      itemEl.classList.add('removing');
-      setTimeout(() => {
-        tasks.splice(taskIndex, 1);
-        if (editingTaskId === id) editingTaskId = null;
-        saveTasks();
-        render();
-        showToast('Task removed.', 'info');
-      }, 250);
-    } else {
+    if (itemEl) itemEl.classList.add('removing');
+
+    try {
+      await API.deleteTask(id);
+
       tasks.splice(taskIndex, 1);
       if (editingTaskId === id) editingTaskId = null;
-      saveTasks();
       render();
-      showToast('Task removed.', 'info');
+      showToast('Task removed from Supabase.', 'info');
+    } catch (err) {
+      if (itemEl) itemEl.classList.remove('removing');
+      render();
+      console.error('Failed to delete task in Supabase:', err);
+      showToast(err.message || 'Failed to delete task from database.', 'danger');
     }
   }
 
-  function clearCompletedTasks() {
+  async function clearCompletedTasks() {
     const completedCount = tasks.filter(t => t.completed).length;
     if (completedCount === 0) return;
 
+    const previousTasks = [...tasks];
+    // Optimistic UI update
     tasks = tasks.filter(t => !t.completed);
     if (editingTaskId && !tasks.some(t => t.id === editingTaskId)) {
       editingTaskId = null;
     }
-
-    saveTasks();
     render();
-    showToast(`Cleared ${completedCount} completed task${completedCount > 1 ? 's' : ''}!`, 'info');
+
+    try {
+      await API.clearCompleted();
+      showToast(`Cleared ${completedCount} completed task${completedCount > 1 ? 's' : ''}!`, 'info');
+    } catch (err) {
+      // Rollback on error
+      tasks = previousTasks;
+      render();
+      console.error('Failed to clear completed tasks in Supabase:', err);
+      showToast(err.message || 'Failed to clear completed tasks from database.', 'danger');
+    }
   }
 
   // =========================================================================
@@ -849,6 +1026,13 @@
       }
     });
 
+    // Retry database sync button
+    if (retryFetchBtn) {
+      retryFetchBtn.addEventListener('click', function () {
+        fetchTasks();
+      });
+    }
+
     // Window resize handler for canvas
     window.addEventListener('resize', function () {
       if (confettiCanvas) {
@@ -865,9 +1049,8 @@
     initTheme();
     updateDateTime();
     setInterval(updateDateTime, 30000); // Refresh time every 30s
-    loadTasks();
     setupEventListeners();
-    render();
+    fetchTasks();
   }
 
   if (document.readyState === 'loading') {
