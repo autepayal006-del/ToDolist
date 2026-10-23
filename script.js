@@ -1,97 +1,233 @@
 /**
- * TaskMate – To-Do List Web Portal
- * Core JavaScript Logic
+ * TaskMate Pro – Next-Gen Task & Productivity Portal
+ * High-Level GUI & Core Application Logic
  * 
  * Features:
- * - Full CRUD: Add, Read, Update, Delete tasks
- * - Task completion toggle with animated feedback
- * - Inline task editing with Enter to save & Esc to cancel
- * - Task filters: All, Active, Completed with live count badges
- * - Safe LocalStorage persistence
- * - Real-time progress bar & task counters
- * - Empty state feedback tailored to current filter
- * - Toast notification feedback
- * - Keyboard navigation & accessible attributes
+ * - Theme Engine (Dark & Light Mode with localStorage persistence)
+ * - Canvas Confetti Physics Celebration Engine
+ * - Full Task CRUD with Priority (High, Med, Low) & Categories (Work, Personal, Study, Goals)
+ * - Live Instant Search with real-time matching
+ * - Multi-criteria Sorting (Newest, Oldest, Priority, Alphabetical)
+ * - Segmented Filter Tabs (All, Active, Completed) with dynamic badges
+ * - Productivity Metrics & Efficiency Gauge
+ * - Interactive Keyboard Shortcuts Modal & Global Keybindings
+ * - Safe LocalStorage Persistence with starter demo data
+ * - Accessible ARIA attributes & micro-toast feedback
  */
 
 (function () {
   'use strict';
 
-  // --- Storage Key & State ---
-  const STORAGE_KEY = 'taskmate_tasks_v1';
+  // --- Storage Keys ---
+  const STORAGE_KEY = 'taskmate_pro_tasks_v2';
+  const THEME_STORAGE_KEY = 'taskmate_theme_mode';
 
+  // --- State Variables ---
   let tasks = [];
   let currentFilter = 'all'; // 'all' | 'active' | 'completed'
+  let searchQuery = '';
+  let sortBy = 'newest'; // 'newest' | 'oldest' | 'priority' | 'alphabetical'
   let editingTaskId = null;
 
   // --- DOM Elements ---
+  const htmlRoot = document.documentElement;
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
+  const shortcutsBtn = document.getElementById('shortcutsBtn');
+  const shortcutsModal = document.getElementById('shortcutsModal');
+  const closeModalBtn = document.getElementById('closeModalBtn');
+  const currentDateText = document.getElementById('currentDateText');
+
+  // Input & Form Elements
   const taskForm = document.getElementById('taskForm');
   const taskInput = document.getElementById('taskInput');
   const clearInputBtn = document.getElementById('clearInputBtn');
   const inputFeedback = document.getElementById('inputFeedback');
+  const searchInput = document.getElementById('searchInput');
+  const sortSelect = document.getElementById('sortSelect');
+
+  // Task List & Empty State
   const taskList = document.getElementById('taskList');
   const emptyState = document.getElementById('emptyState');
   const emptyTitle = document.getElementById('emptyTitle');
   const emptySubtitle = document.getElementById('emptySubtitle');
   const emptyIcon = document.getElementById('emptyIcon');
   const clearCompletedBtn = document.getElementById('clearCompletedBtn');
-  
-  // Counters & Badges
+
+  // Metric Displays
   const totalTasksCount = document.getElementById('totalTasksCount');
   const activeTasksCount = document.getElementById('activeTasksCount');
   const completedTasksCount = document.getElementById('completedTasksCount');
+  const progressPercentage = document.getElementById('progressPercentage');
+  const progressBarFill = document.getElementById('progressBarFill');
+  const progressBarTrack = document.getElementById('progressBarTrack');
+  const progressCaption = document.getElementById('progressCaption');
+
+  // Badges & Toast
   const badgeAll = document.getElementById('badgeAll');
   const badgeActive = document.getElementById('badgeActive');
   const badgeCompleted = document.getElementById('badgeCompleted');
-  const progressBarFill = document.getElementById('progressBarFill');
-  const progressPercentage = document.getElementById('progressPercentage');
-  const progressBarTrack = document.getElementById('progressBarTrack');
-
-  // Filter Buttons
-  const filterButtons = document.querySelectorAll('.filter-btn');
-
-  // Header Elements
-  const currentDateBadge = document.getElementById('currentDateBadge');
+  const tabButtons = document.querySelectorAll('.tab-btn');
   const toastContainer = document.getElementById('toastContainer');
+  const confettiCanvas = document.getElementById('confettiCanvas');
 
   // --- Starter Tasks for First-Time Users ---
   const DEFAULT_STARTER_TASKS = [
     {
-      id: 'task-1',
-      text: 'Welcome to TaskMate! Plan your day with ease ✨',
+      id: 'task_pro_1',
+      text: 'Design sleek modern dashboard UI with glassmorphism',
+      completed: true,
+      priority: 'high',
+      category: 'work',
+      createdAt: Date.now() - 3600000 * 3
+    },
+    {
+      id: 'task_pro_2',
+      text: 'Review pull request & push updates to GitHub repository',
       completed: false,
+      priority: 'high',
+      category: 'work',
       createdAt: Date.now() - 3600000 * 2
     },
     {
-      id: 'task-2',
-      text: 'Click the checkbox on the left to mark a task as completed',
-      completed: true,
+      id: 'task_pro_3',
+      text: 'Explore advanced vanilla JavaScript performance patterns',
+      completed: false,
+      priority: 'medium',
+      category: 'study',
       createdAt: Date.now() - 3600000 * 1
     },
     {
-      id: 'task-3',
-      text: 'Hover and click the pencil icon to edit any task',
+      id: 'task_pro_4',
+      text: 'Evening 30-minute workout & mindfulness meditation',
       completed: false,
+      priority: 'low',
+      category: 'personal',
       createdAt: Date.now()
     }
   ];
 
-  // --- Storage Helpers (Safe handling) ---
+  // =========================================================================
+  // --- 1. Theme Engine (Light / Dark Mode) ---
+  // =========================================================================
+  function initTheme() {
+    const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme) {
+      applyTheme(savedTheme);
+    } else {
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      applyTheme(prefersDark ? 'dark' : 'light');
+    }
+  }
+
+  function applyTheme(theme) {
+    htmlRoot.setAttribute('data-theme', theme);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (e) {
+      console.warn('Storage unavailable for theme preference');
+    }
+  }
+
+  function toggleTheme() {
+    const currentTheme = htmlRoot.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    applyTheme(newTheme);
+    showToast(`Switched to ${newTheme === 'dark' ? 'Dark 🌙' : 'Light ☀️'} theme`, 'info');
+  }
+
+  // =========================================================================
+  // --- 2. Live Date & Time Tracker ---
+  // =========================================================================
+  function updateDateTime() {
+    if (!currentDateText) return;
+    const now = new Date();
+    const options = { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+    currentDateText.textContent = now.toLocaleDateString(undefined, options);
+  }
+
+  // =========================================================================
+  // --- 3. Confetti Particle Physics Celebration Engine ---
+  // =========================================================================
+  let confettiParticles = [];
+  let confettiAnimationId = null;
+
+  function triggerConfetti(particleCount = 70) {
+    if (!confettiCanvas) return;
+    const ctx = confettiCanvas.getContext('2d');
+    const width = confettiCanvas.width = window.innerWidth;
+    const height = confettiCanvas.height = window.innerHeight;
+
+    const colors = ['#3b82f6', '#60a5fa', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+
+    for (let i = 0; i < particleCount; i++) {
+      confettiParticles.push({
+        x: width / 2 + (Math.random() - 0.5) * 300,
+        y: height / 3 + (Math.random() - 0.5) * 100,
+        size: Math.random() * 8 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vx: (Math.random() - 0.5) * 12,
+        vy: Math.random() * -12 - 4,
+        gravity: 0.35,
+        rotation: Math.random() * 360,
+        rotSpeed: (Math.random() - 0.5) * 10,
+        opacity: 1
+      });
+    }
+
+    if (!confettiAnimationId) {
+      runConfettiLoop(ctx);
+    }
+  }
+
+  function runConfettiLoop(ctx) {
+    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+
+    for (let i = confettiParticles.length - 1; i >= 0; i--) {
+      const p = confettiParticles[i];
+      p.vy += p.gravity;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rotation += p.rotSpeed;
+      p.opacity -= 0.012;
+
+      if (p.opacity <= 0 || p.y > confettiCanvas.height) {
+        confettiParticles.splice(i, 1);
+        continue;
+      }
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.opacity);
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rotation * Math.PI) / 180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 1.4);
+      ctx.restore();
+    }
+
+    if (confettiParticles.length > 0) {
+      confettiAnimationId = requestAnimationFrame(() => runConfettiLoop(ctx));
+    } else {
+      cancelAnimationFrame(confettiAnimationId);
+      confettiAnimationId = null;
+      ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    }
+  }
+
+  // =========================================================================
+  // --- 4. LocalStorage Persistence ---
+  // =========================================================================
   function loadTasks() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored !== null) {
         tasks = JSON.parse(stored);
-        if (!Array.isArray(tasks)) {
-          tasks = [];
-        }
+        if (!Array.isArray(tasks)) tasks = [];
       } else {
-        // First visit: initialize with helpful starter tasks
         tasks = [...DEFAULT_STARTER_TASKS];
         saveTasks();
       }
     } catch (err) {
-      console.warn('LocalStorage is not accessible or corrupted:', err);
+      console.warn('LocalStorage access issue:', err);
       tasks = [...DEFAULT_STARTER_TASKS];
     }
   }
@@ -100,19 +236,20 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
     } catch (err) {
-      console.warn('Failed to save to localStorage:', err);
-      showToast('Could not save tasks locally (quota exceeded or private mode).', 'danger');
+      console.warn('Unable to persist tasks to localStorage:', err);
+      showToast('Could not save tasks locally (Quota or private mode).', 'danger');
     }
   }
 
-  // --- Toast Notifications ---
+  // =========================================================================
+  // --- 5. Micro-Toast Feedback System ---
+  // =========================================================================
   function showToast(message, type = 'info') {
     if (!toastContainer) return;
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    
-    // Icon based on type
+
     let iconSvg = '';
     if (type === 'success') {
       iconSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
@@ -126,21 +263,22 @@
     toastContainer.appendChild(toast);
 
     setTimeout(() => {
-      if (toast.parentNode) {
-        toast.remove();
-      }
+      if (toast.parentNode) toast.remove();
     }, 2800);
   }
 
-  // --- Utility Functions ---
+  // =========================================================================
+  // --- 6. Helpers & Utilities ---
+  // =========================================================================
   function escapeHtml(str) {
+    if (!str) return '';
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
   }
 
   function generateId() {
-    return 'task_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7);
+    return 'task_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
   }
 
   function formatTime(timestamp) {
@@ -149,23 +287,28 @@
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  function updateCurrentDate() {
-    if (!currentDateBadge) return;
-    const now = new Date();
-    const options = { weekday: 'short', month: 'short', day: 'numeric' };
-    currentDateBadge.textContent = now.toLocaleDateString(undefined, options);
+  function getCategoryLabel(category) {
+    switch (category) {
+      case 'work': return '💼 Work';
+      case 'personal': return '👤 Personal';
+      case 'study': return '📚 Study';
+      case 'goals': return '🎯 Goals';
+      default: return '📝 General';
+    }
   }
 
-  // --- Input Validation & Feedback ---
-  function showInputError(message) {
-    inputFeedback.textContent = message;
+  // =========================================================================
+  // --- 7. Validation & Feedback ---
+  // =========================================================================
+  function showInputError(msg) {
+    inputFeedback.textContent = msg;
     inputFeedback.classList.add('visible');
     taskInput.classList.add('shake');
     taskInput.focus();
 
     setTimeout(() => {
       taskInput.classList.remove('shake');
-    }, 500);
+    }, 450);
   }
 
   function clearInputError() {
@@ -173,72 +316,113 @@
     inputFeedback.classList.remove('visible');
   }
 
-  // --- Render Core ---
+  // =========================================================================
+  // --- 8. Core Data Calculations & Rendering ---
+  // =========================================================================
   function render() {
-    updateCounters();
-    renderTaskList();
+    updateMetrics();
+    renderTasks();
   }
 
-  function updateCounters() {
+  function updateMetrics() {
     const total = tasks.length;
     const completed = tasks.filter(t => t.completed).length;
     const active = total - completed;
 
-    // Numerical stats
     totalTasksCount.textContent = total;
     activeTasksCount.textContent = active;
     completedTasksCount.textContent = completed;
 
-    // Badges on filter buttons
     badgeAll.textContent = total;
     badgeActive.textContent = active;
     badgeCompleted.textContent = completed;
 
-    // Progress bar calculation
-    const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
-    progressBarFill.style.width = `${percentage}%`;
-    progressPercentage.textContent = `${percentage}%`;
-    progressBarTrack.setAttribute('aria-valuenow', percentage);
+    const rate = total === 0 ? 0 : Math.round((completed / total) * 100);
+    progressPercentage.textContent = `${rate}%`;
+    progressBarFill.style.width = `${rate}%`;
+    progressBarTrack.setAttribute('aria-valuenow', rate);
 
-    // Clear completed button state
+    if (total === 0) {
+      progressCaption.textContent = 'Add your first task to begin!';
+    } else if (rate === 100) {
+      progressCaption.textContent = '🏆 All tasks complete! Outstanding work!';
+    } else if (rate >= 50) {
+      progressCaption.textContent = '🚀 More than halfway there! Keep it up!';
+    } else {
+      progressCaption.textContent = '⚡ Every completed step builds momentum!';
+    }
+
     clearCompletedBtn.disabled = completed === 0;
   }
 
-  function renderTaskList() {
-    // Filter tasks
-    const filteredTasks = tasks.filter(task => {
-      if (currentFilter === 'active') return !task.completed;
-      if (currentFilter === 'completed') return task.completed;
-      return true;
+  function getSortedAndFilteredTasks() {
+    let result = tasks.slice();
+
+    // 1. Status Filter
+    if (currentFilter === 'active') {
+      result = result.filter(t => !t.completed);
+    } else if (currentFilter === 'completed') {
+      result = result.filter(t => t.completed);
+    }
+
+    // 2. Keyword Search
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(t => 
+        t.text.toLowerCase().includes(q) || 
+        (t.category && t.category.toLowerCase().includes(q)) ||
+        (t.priority && t.priority.toLowerCase().includes(q))
+      );
+    }
+
+    // 3. Sorting
+    const priorityWeight = { high: 3, medium: 2, low: 1 };
+    result.sort((a, b) => {
+      if (sortBy === 'newest') {
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      } else if (sortBy === 'oldest') {
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      } else if (sortBy === 'priority') {
+        const weightA = priorityWeight[a.priority] || 1;
+        const weightB = priorityWeight[b.priority] || 1;
+        return weightB - weightA;
+      } else if (sortBy === 'alphabetical') {
+        return a.text.localeCompare(b.text);
+      }
+      return 0;
     });
 
-    // Check empty state
-    if (filteredTasks.length === 0) {
+    return result;
+  }
+
+  function renderTasks() {
+    const list = getSortedAndFilteredTasks();
+
+    if (list.length === 0) {
       taskList.innerHTML = '';
       taskList.style.display = 'none';
       emptyState.style.display = 'flex';
-      updateEmptyStateMessage();
+      renderEmptyState();
       return;
     }
 
     taskList.style.display = 'flex';
     emptyState.style.display = 'none';
 
-    // Build task items
-    taskList.innerHTML = filteredTasks.map(task => {
+    taskList.innerHTML = list.map(task => {
       const isEditing = task.id === editingTaskId;
 
       if (isEditing) {
         return `
-          <li class="task-item editing" data-id="${task.id}" role="listitem">
+          <li class="task-item editing" data-id="${task.id}" data-priority="${task.priority || 'low'}" role="listitem">
             <form class="task-edit-form" id="editForm_${task.id}">
               <input 
                 type="text" 
                 class="task-edit-input" 
                 id="editInput_${task.id}" 
                 value="${escapeHtml(task.text)}" 
-                maxlength="150" 
-                aria-label="Edit task description"
+                maxlength="160" 
+                aria-label="Edit task title"
                 required
               >
               <button type="submit" class="btn-edit-save" title="Save changes (Enter)">
@@ -255,8 +439,12 @@
         `;
       }
 
+      const priorityBadgeClass = task.priority === 'high' 
+        ? 'priority-high-badge' 
+        : (task.priority === 'medium' ? 'priority-med-badge' : 'priority-low-badge');
+
       return `
-        <li class="task-item ${task.completed ? 'completed' : ''}" data-id="${task.id}" role="listitem">
+        <li class="task-item ${task.completed ? 'completed' : ''}" data-id="${task.id}" data-priority="${task.priority || 'low'}" role="listitem">
           <div class="task-checkbox-wrap">
             <input 
               type="checkbox" 
@@ -264,17 +452,21 @@
               id="chk_${task.id}" 
               data-id="${task.id}" 
               ${task.completed ? 'checked' : ''} 
-              aria-label="Mark task '${escapeHtml(task.text)}' as ${task.completed ? 'incomplete' : 'completed'}"
+              aria-label="Toggle completion for '${escapeHtml(task.text)}'"
             >
-            <svg class="task-checkbox-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="task-checkbox-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
           </div>
 
           <div class="task-content" data-id="${task.id}" title="Click to toggle status">
-            <span class="task-text">${escapeHtml(task.text)}</span>
-            <div class="task-meta">
-              <span class="task-time">
+            <div class="task-title-line">
+              <span class="task-text">${escapeHtml(task.text)}</span>
+            </div>
+            <div class="task-meta-row">
+              <span class="tag-badge">${getCategoryLabel(task.category)}</span>
+              <span class="priority-badge ${priorityBadgeClass}">${(task.priority || 'low')}</span>
+              <span class="task-timestamp">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="10"></circle>
                   <polyline points="12 6 12 12 16 14"></polyline>
@@ -287,7 +479,7 @@
           <div class="task-actions">
             <button 
               type="button" 
-              class="btn-task-action btn-task-edit" 
+              class="btn-item-action btn-task-edit" 
               data-id="${task.id}" 
               title="Edit task" 
               aria-label="Edit task '${escapeHtml(task.text)}'"
@@ -299,7 +491,7 @@
             </button>
             <button 
               type="button" 
-              class="btn-task-action btn-task-delete" 
+              class="btn-item-action btn-task-delete" 
               data-id="${task.id}" 
               title="Delete task" 
               aria-label="Delete task '${escapeHtml(task.text)}'"
@@ -314,7 +506,6 @@
       `;
     }).join('');
 
-    // If an edit input was rendered, focus it and move cursor to end
     if (editingTaskId) {
       const editInput = document.getElementById(`editInput_${editingTaskId}`);
       if (editInput) {
@@ -324,8 +515,17 @@
     }
   }
 
-  function updateEmptyStateMessage() {
-    if (currentFilter === 'active') {
+  function renderEmptyState() {
+    if (searchQuery.trim() !== '') {
+      emptyIcon.innerHTML = `
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      `;
+      emptyTitle.textContent = 'No matching tasks found';
+      emptySubtitle.textContent = `No task corresponds to "${escapeHtml(searchQuery)}". Try clearing your search term.`;
+    } else if (currentFilter === 'active') {
       emptyIcon.innerHTML = `
         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle>
@@ -333,43 +533,49 @@
         </svg>
       `;
       emptyTitle.textContent = 'All caught up!';
-      emptySubtitle.textContent = 'You have completed all active tasks. Great job!';
+      emptySubtitle.textContent = 'You have zero active tasks remaining. Enjoy your accomplished day!';
     } else if (currentFilter === 'completed') {
       emptyIcon.innerHTML = `
         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="8" x2="12" y2="12"></line>
-          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
       `;
-      emptyTitle.textContent = 'No completed tasks';
-      emptySubtitle.textContent = 'Finish a task to see it listed here in your accomplishments.';
+      emptyTitle.textContent = 'No completed tasks yet';
+      emptySubtitle.textContent = 'Check off your goals to see them logged here in your achievements.';
     } else {
       emptyIcon.innerHTML = `
         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="12" y1="18" x2="12" y2="12"></line>
-          <line x1="9" y1="15" x2="15" y2="15"></line>
+          <path d="M12 20h9"></path>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
         </svg>
       `;
-      emptyTitle.textContent = 'No tasks yet';
-      emptySubtitle.textContent = 'Type a task in the box above and press Enter or Add Task!';
+      emptyTitle.textContent = 'Your task list is clean';
+      emptySubtitle.textContent = 'Add a new priority task above to jumpstart your productivity!';
     }
   }
 
-  // --- Task Action Handlers ---
+  // =========================================================================
+  // --- 9. Task Action Handlers ---
+  // =========================================================================
   function addTask(rawText) {
     const text = rawText.trim();
     if (!text) {
-      showInputError('Please enter a task description before adding.');
+      showInputError('Please enter a task description before submitting.');
       return false;
     }
+
+    // Read selected Priority & Category from form
+    const priorityEl = document.querySelector('input[name="taskPriority"]:checked');
+    const categoryEl = document.querySelector('input[name="taskCategory"]:checked');
+    const priority = priorityEl ? priorityEl.value : 'low';
+    const category = categoryEl ? categoryEl.value : 'work';
 
     const newTask = {
       id: generateId(),
       text: text,
       completed: false,
+      priority: priority,
+      category: category,
       createdAt: Date.now()
     };
 
@@ -377,11 +583,10 @@
     saveTasks();
     render();
 
-    // Reset input
     taskInput.value = '';
     clearInputBtn.classList.remove('visible');
     clearInputError();
-    showToast('Task added successfully!', 'success');
+    showToast('Task added to your dashboard!', 'success');
     return true;
   }
 
@@ -394,9 +599,15 @@
     render();
 
     if (task.completed) {
-      showToast('Task marked as completed! 🎉', 'success');
+      showToast('Task marked as complete! 🎉', 'success');
+      triggerConfetti(45);
+
+      // Check if all tasks are complete
+      if (tasks.length > 0 && tasks.every(t => t.completed)) {
+        setTimeout(() => triggerConfetti(120), 200);
+      }
     } else {
-      showToast('Task marked as active.', 'info');
+      showToast('Task restored to active.', 'info');
     }
   }
 
@@ -413,7 +624,7 @@
   function saveEditedTask(id, rawText) {
     const text = rawText.trim();
     if (!text) {
-      showToast('Task description cannot be empty.', 'danger');
+      showToast('Task text cannot be blank.', 'danger');
       return;
     }
 
@@ -440,14 +651,14 @@
         if (editingTaskId === id) editingTaskId = null;
         saveTasks();
         render();
-        showToast('Task deleted.', 'info');
-      }, 240);
+        showToast('Task removed.', 'info');
+      }, 250);
     } else {
       tasks.splice(taskIndex, 1);
       if (editingTaskId === id) editingTaskId = null;
       saveTasks();
       render();
-      showToast('Task deleted.', 'info');
+      showToast('Task removed.', 'info');
     }
   }
 
@@ -465,15 +676,44 @@
     showToast(`Cleared ${completedCount} completed task${completedCount > 1 ? 's' : ''}!`, 'info');
   }
 
-  // --- Event Listeners ---
+  // =========================================================================
+  // --- 10. Shortcuts Modal Controllers ---
+  // =========================================================================
+  function openShortcutsModal() {
+    if (shortcutsModal) {
+      shortcutsModal.classList.add('open');
+      shortcutsModal.setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  function closeShortcutsModal() {
+    if (shortcutsModal) {
+      shortcutsModal.classList.remove('open');
+      shortcutsModal.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  // =========================================================================
+  // --- 11. Event Listeners Setup ---
+  // =========================================================================
   function setupEventListeners() {
-    // Add task form submission (Handles button click and Enter key)
+    // Theme toggle button
+    themeToggleBtn.addEventListener('click', toggleTheme);
+
+    // Shortcuts modal open/close
+    shortcutsBtn.addEventListener('click', openShortcutsModal);
+    closeModalBtn.addEventListener('click', closeShortcutsModal);
+    shortcutsModal.addEventListener('click', function (e) {
+      if (e.target === shortcutsModal) closeShortcutsModal();
+    });
+
+    // Form submission
     taskForm.addEventListener('submit', function (e) {
       e.preventDefault();
       addTask(taskInput.value);
     });
 
-    // Input changes (clear button visibility & reset feedback)
+    // Input clear button
     taskInput.addEventListener('input', function () {
       if (taskInput.value.length > 0) {
         clearInputBtn.classList.add('visible');
@@ -483,7 +723,6 @@
       }
     });
 
-    // Clear input button
     clearInputBtn.addEventListener('click', function () {
       taskInput.value = '';
       clearInputBtn.classList.remove('visible');
@@ -491,10 +730,22 @@
       taskInput.focus();
     });
 
-    // Filter switching
-    filterButtons.forEach(btn => {
+    // Instant search input
+    searchInput.addEventListener('input', function () {
+      searchQuery = searchInput.value;
+      render();
+    });
+
+    // Sorting dropdown
+    sortSelect.addEventListener('change', function () {
+      sortBy = sortSelect.value;
+      render();
+    });
+
+    // Filter Segmented Tabs
+    tabButtons.forEach(btn => {
       btn.addEventListener('click', function () {
-        filterButtons.forEach(b => {
+        tabButtons.forEach(b => {
           b.classList.remove('active');
           b.setAttribute('aria-selected', 'false');
         });
@@ -506,9 +757,7 @@
     });
 
     // Clear completed button
-    clearCompletedBtn.addEventListener('click', function () {
-      clearCompletedTasks();
-    });
+    clearCompletedBtn.addEventListener('click', clearCompletedTasks);
 
     // Task list event delegation
     taskList.addEventListener('click', function (e) {
@@ -543,7 +792,7 @@
         return;
       }
 
-      // 5. Clicking task text content to toggle complete
+      // 5. Clicking task content directly to toggle completion
       const content = e.target.closest('.task-content');
       if (content && !editingTaskId) {
         const id = content.getAttribute('data-id');
@@ -552,7 +801,7 @@
       }
     });
 
-    // Handle Edit form submission & Keyboard shortcuts inside task list
+    // Inline edit form submission
     taskList.addEventListener('submit', function (e) {
       const editForm = e.target.closest('.task-edit-form');
       if (editForm) {
@@ -565,31 +814,62 @@
       }
     });
 
-    taskList.addEventListener('keydown', function (e) {
-      // Escape key cancels active editing
-      if (e.key === 'Escape' && editingTaskId) {
-        cancelEditingTask();
+    // Global Keyboard Shortcuts
+    document.addEventListener('keydown', function (e) {
+      // Escape closes modal or cancels active editing
+      if (e.key === 'Escape') {
+        if (shortcutsModal.classList.contains('open')) {
+          closeShortcutsModal();
+          return;
+        }
+        if (editingTaskId) {
+          cancelEditingTask();
+          return;
+        }
+      }
+
+      // '?' opens shortcuts modal when not in input
+      if (e.key === '?' && document.activeElement !== taskInput && document.activeElement !== searchInput && !editingTaskId) {
+        e.preventDefault();
+        openShortcutsModal();
+        return;
+      }
+
+      // '/' focuses search or task input
+      if (e.key === '/' && document.activeElement !== taskInput && document.activeElement !== searchInput && !editingTaskId) {
+        e.preventDefault();
+        taskInput.focus();
+        return;
+      }
+
+      // Alt + T toggles theme
+      if (e.altKey && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        toggleTheme();
       }
     });
 
-    // Global keyboard shortcut: '/' focuses the new task input
-    document.addEventListener('keydown', function (e) {
-      if (e.key === '/' && document.activeElement !== taskInput && !editingTaskId) {
-        e.preventDefault();
-        taskInput.focus();
+    // Window resize handler for canvas
+    window.addEventListener('resize', function () {
+      if (confettiCanvas) {
+        confettiCanvas.width = window.innerWidth;
+        confettiCanvas.height = window.innerHeight;
       }
     });
   }
 
-  // --- Initialization ---
+  // =========================================================================
+  // --- 12. App Initialization ---
+  // =========================================================================
   function init() {
-    updateCurrentDate();
+    initTheme();
+    updateDateTime();
+    setInterval(updateDateTime, 30000); // Refresh time every 30s
     loadTasks();
     setupEventListeners();
     render();
   }
 
-  // Run on DOM Ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
