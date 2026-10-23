@@ -140,9 +140,62 @@ Open your browser and navigate to:
 
 ---
 
+## 🌐 Deploying to Vercel (Production)
+
+TaskMate Pro is engineered with native **Vercel Serverless Functions** in the `api/` directory and is configured via `vercel.json`.
+
+### Resolving the "Unexpected token 'T', 'The page c...' is not valid JSON" Error
+On static deployments without serverless endpoints, requests to `/api/tasks` returned Vercel's default 404 HTML page (`The page could not be found...`). When the frontend called `res.json()`, JSON parsing failed on the HTML text.
+
+TaskMate now includes:
+1. Dedicated serverless functions in `api/` for every task operation.
+2. `vercel.json` configuration ensuring proper routing and `no-store` headers.
+3. Safe JSON response parsing in `script.js` preventing HTML parsing crashes.
+4. JSON error responses for all API routes (never returning raw HTML error pages).
+
+### Step-by-Step Vercel Deployment Instructions:
+
+#### Step 1: Push Code to GitHub
+```bash
+git add .
+git commit -m "feat: add Vercel serverless API structure and vercel.json"
+git push origin main
+```
+
+#### Step 2: Import into Vercel
+1. Open [https://vercel.com/new](https://vercel.com/new).
+2. Select and import your GitHub repository (`ToDolist`).
+3. Leave Framework Preset as **Other** and Root Directory as `./`.
+
+#### Step 3: Configure Environment Variables in Vercel
+Before clicking Deploy, expand **Environment Variables** in the Vercel project configuration and add:
+
+| Key | Value | Description |
+| :--- | :--- | :--- |
+| `SUPABASE_URL` | `https://tyapfcjbwlnkvypdkekw.supabase.co` | Your Supabase Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | *(Your private `service_role` key)* | Copied from Supabase Dashboard -> Settings -> API |
+| `SESSION_SECRET` | *(Your 32+ char hex secret)* | Used on the server to derive secure owner IDs |
+
+> [!NOTE]
+> Environment variables in Vercel are securely encrypted on the server and are never exposed to browser client bundles or public Git repositories.
+
+#### Step 4: Click Deploy
+Vercel will build and deploy:
+- Static assets (`index.html`, `style.css`, `script.js`, `supabase-config.js`)
+- Serverless API functions:
+  - `GET /api`
+  - `GET /api/health`
+  - `GET /api/tasks` & `POST /api/tasks`
+  - `PATCH /api/tasks/:id` & `DELETE /api/tasks/:id`
+  - `POST /api/tasks/clear-completed`
+
+Once deployed, visit your Vercel URL (e.g. `https://your-project.vercel.app`) to use your live, cloud-persisted TaskMate portal!
+
+---
+
 ## 🧪 Testing and Verification
 
-TaskMate Pro includes an automated test suite covering all 14 required validation scenarios.
+TaskMate Pro includes an automated test suite covering all security, asset, validation, and CRUD scenarios.
 
 ### Running Automated Tests
 Run the test runner:
@@ -154,22 +207,13 @@ node test.js
 
 The test suite validates:
 1. **Application Assets**: `index.html`, `style.css`, `script.js`, and `supabase-config.js` load with HTTP 200.
-2. **Frontend Secret Audit**: Zero service-role keys or passwords exist in any client files.
-3. **Session Cookie Security**: Generates random `HttpOnly`, `SameSite=Strict` cookies.
-4. **Input Validation**: Blank/whitespace titles or titles > 160 characters are rejected with HTTP 400.
-5. **Direct REST API Access**: Confirms that direct queries via `https://.../rest/v1/tasks` using the publishable key cannot bypass RLS.
-6. **Database Diagnostics**: Friendly, actionable error messages when the database or keys are unconfigured.
-7. **Live CRUD Verification**: Task creation, persistence across refresh, editing, completion toggle, deletion, clear-completed, and multi-browser session isolation.
-
-### Manual Verification Checklist
-1. **Create Task**: Type a focus goal in the input field, select priority/category, and press <kbd>Enter</kbd> (or click **Add Task**). Verify the task is saved to Supabase and appears in the list.
-2. **Persistence**: Refresh the browser page (<kbd>F5</kbd> / <kbd>Ctrl+R</kbd>). Confirm your task remains intact.
-3. **Toggle Completion**: Click the checkbox on any task. Notice the celebratory confetti burst and updated productivity counters. Click again to restore it to active.
-4. **Edit Task**: Click the pencil icon on any task, modify the text, and press <kbd>Enter</kbd>. Confirm the title is updated in the database.
-5. **Filter & Sort**: Test switching between **All**, **Active**, and **Completed** filter tabs, and sort by **Newest**, **Oldest**, **High Priority**, or **Alphabetical**.
-6. **Clear Completed**: Click **Clear Completed**. Verify only completed tasks owned by your current browser are deleted.
-7. **Isolation Test**: Open an Incognito / Private window and visit `http://localhost:3000`. Verify that the Incognito session has an independent task list and cannot see or modify your primary session's tasks.
-8. **Error Handling**: If the database is disconnected or `.env` key is absent, verify that the UI displays the **Database Connection Notice** banner with a **Retry Connection** button and a red sync indicator in the footer.
+2. **Vercel Serverless Structure**: Validates `vercel.json` and checks that all required function files in `api/` exist and handle requests.
+3. **Frontend Secret Audit**: Zero service-role keys or passwords exist in any client files.
+4. **Session Cookie Security**: Generates random `HttpOnly`, `SameSite=Strict` cookies.
+5. **Input Validation**: Blank/whitespace titles or titles > 160 characters are rejected with HTTP 400.
+6. **Direct REST API Access**: Confirms that direct queries via `https://.../rest/v1/tasks` using the publishable key cannot bypass RLS.
+7. **Database Diagnostics & JSON Errors**: Error messages return structured JSON and never unhandled HTML.
+8. **Live CRUD Verification**: Task creation, persistence across refresh, editing, completion toggle, deletion, clear-completed, and multi-browser session isolation.
 
 ---
 
@@ -177,16 +221,27 @@ The test suite validates:
 
 ```text
 To-do list/
+├── .env                 # Server-only secrets (ignored by Git)
 ├── .env.example         # Template for server-only environment variables
 ├── .gitignore           # Safeguard preventing .env & secrets from git tracking
-├── index.html           # Accessible semantic markup, glassmorphism UI & modal dialogs
+├── vercel.json          # Vercel deployment configuration
 ├── package.json         # Project metadata and test/start scripts
-├── README.md            # Complete documentation, setup guide & test instructions
-├── script.js            # Frontend controller, optimistic UI, search, confetti & API sync
-├── server.js            # Node.js backend server, HttpOnly session engine & Supabase bridge
+├── index.html           # Accessible semantic markup, glassmorphism UI & modal dialogs
 ├── style.css            # Responsive design tokens, glassmorphism, animations & themes
+├── script.js            # Frontend controller, optimistic UI, search, confetti & API sync
+├── server.js            # Local development server routing to Vercel serverless handlers
 ├── supabase-config.js   # Centralized public-client Supabase configuration
-└── supabase-schema.sql  # SQL setup file with tasks table, triggers, indexes & RLS
+├── supabase-schema.sql  # SQL setup file with tasks table, triggers, indexes & RLS
+├── test.js              # Automated test suite (45 tests)
+├── README.md            # Complete documentation, setup guide & Vercel deployment instructions
+└── api/                 # Vercel Serverless Functions
+    ├── _utils.js        # Shared auth, cookie, session, and Supabase querying utilities
+    ├── index.js         # GET /api (API status and endpoints directory)
+    ├── health.js        # GET /api/health (System and database status check)
+    └── tasks/
+        ├── index.js             # GET /api/tasks & POST /api/tasks
+        ├── [id].js              # PATCH /api/tasks/:id & DELETE /api/tasks/:id
+        └── clear-completed.js   # POST /api/tasks/clear-completed
 ```
 
 ---

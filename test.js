@@ -99,6 +99,35 @@ async function runTests() {
     assert(cfgRes.body.includes(SUPABASE_PUBLISHABLE_KEY), 'supabase-config.js initializes with project publishable key');
 
     // -------------------------------------------------------------------------
+    // Test 1b: Vercel Serverless Structure & Configuration
+    // -------------------------------------------------------------------------
+    console.log('\n[Vercel Compatibility] Serverless Structure & vercel.json Verification');
+    const vercelConfigPath = path.join(__dirname, 'vercel.json');
+    assert(fs.existsSync(vercelConfigPath), 'vercel.json exists in root directory');
+    const vercelConfig = JSON.parse(fs.readFileSync(vercelConfigPath, 'utf8'));
+    assert(Boolean(vercelConfig), 'vercel.json contains valid configuration JSON');
+
+    const expectedServerlessFiles = [
+      'api/_utils.js',
+      'api/index.js',
+      'api/health.js',
+      'api/tasks/index.js',
+      'api/tasks/clear-completed.js',
+      'api/tasks/[id].js'
+    ];
+    for (const f of expectedServerlessFiles) {
+      assert(fs.existsSync(path.join(__dirname, f)), `Serverless function file exists: ${f}`);
+    }
+
+    const apiRootRes = await request('/api');
+    assert(apiRootRes.status === 200, 'GET /api returns HTTP 200');
+    assert(apiRootRes.body && apiRootRes.body.status === 'online', 'GET /api returns JSON API information');
+
+    const unknownApiRes = await request('/api/non-existent-endpoint');
+    assert(unknownApiRes.status === 404, 'Unknown API route returns HTTP 404');
+    assert(unknownApiRes.body && unknownApiRes.body.code === 'NOT_FOUND', 'Unknown API route returns meaningful JSON (never HTML)');
+
+    // -------------------------------------------------------------------------
     // Test 2: Security & Frontend Secrets Audit (Scenario 13)
     // -------------------------------------------------------------------------
     console.log('\n[Scenario 13] Frontend Secret Audit (No Privileged Keys Exposed)');

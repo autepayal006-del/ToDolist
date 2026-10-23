@@ -228,77 +228,85 @@
   // =========================================================================
   // --- 4. Supabase Database Synchronization & API Client ---
   // =========================================================================
+  async function safeFetchJson(url, options = {}) {
+    const res = await fetch(url, {
+      credentials: 'same-origin',
+      ...options,
+      headers: {
+        'Accept': 'application/json',
+        ...(options.headers || {})
+      }
+    });
+
+    let data = null;
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        data = null;
+      }
+    }
+
+    if (!data) {
+      const text = await res.text().catch(() => '');
+      let cleanMsg;
+      if (res.status === 404) {
+        cleanMsg = 'Serverless API route not found (HTTP 404). Please ensure the Vercel /api deployment is complete.';
+      } else if (!res.ok) {
+        cleanMsg = `Server error (HTTP ${res.status}): ${text.slice(0, 100) || res.statusText}`;
+      } else {
+        cleanMsg = 'Unexpected response format received from server.';
+      }
+      const err = new Error(cleanMsg);
+      err.code = `HTTP_${res.status}`;
+      throw err;
+    }
+
+    if (!res.ok) {
+      const err = new Error(data.error || data.message || `Request failed with HTTP status ${res.status}`);
+      err.code = data.code || `HTTP_${res.status}`;
+      err.details = data.details || data;
+      throw err;
+    }
+
+    return data;
+  }
+
   const API = {
     async getTasks() {
-      const res = await fetch('/api/tasks', { credentials: 'same-origin' });
-      const data = await res.json();
-      if (!res.ok) {
-        const err = new Error(data.error || 'Failed to fetch tasks from database');
-        err.code = data.code;
-        err.details = data;
-        throw err;
-      }
+      const data = await safeFetchJson('/api/tasks');
       return data.tasks || [];
     },
 
     async createTask(payload) {
-      const res = await fetch('/api/tasks', {
+      const data = await safeFetchJson('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      if (!res.ok) {
-        const err = new Error(data.error || 'Failed to create task in database');
-        err.code = data.code;
-        throw err;
-      }
       return data.task;
     },
 
     async updateTask(id, payload) {
-      const res = await fetch(`/api/tasks/${id}`, {
+      const data = await safeFetchJson(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      if (!res.ok) {
-        const err = new Error(data.error || 'Failed to update task in database');
-        err.code = data.code;
-        throw err;
-      }
       return data.task;
     },
 
     async deleteTask(id) {
-      const res = await fetch(`/api/tasks/${id}`, {
-        method: 'DELETE',
-        credentials: 'same-origin'
+      return await safeFetchJson(`/api/tasks/${id}`, {
+        method: 'DELETE'
       });
-      const data = await res.json();
-      if (!res.ok) {
-        const err = new Error(data.error || 'Failed to delete task from database');
-        err.code = data.code;
-        throw err;
-      }
-      return data;
     },
 
     async clearCompleted() {
-      const res = await fetch('/api/tasks/clear-completed', {
-        method: 'POST',
-        credentials: 'same-origin'
+      return await safeFetchJson('/api/tasks/clear-completed', {
+        method: 'POST'
       });
-      const data = await res.json();
-      if (!res.ok) {
-        const err = new Error(data.error || 'Failed to clear completed tasks');
-        err.code = data.code;
-        throw err;
-      }
-      return data;
     }
   };
 
