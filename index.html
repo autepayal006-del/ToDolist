@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="TaskMate - A modern, simple, and responsive To-Do List Web Portal to organize your daily tasks easily.">
+  <title>TaskMate – To-Do List Web Portal</title>
+  
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-wrapper">
+    <!-- Header Section -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4"></path>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">TaskMate</h1>
+          <p class="brand-tagline">To-Do List Web Portal</p>
+        </div>
+      </div>
+      
+      <div class="header-meta">
+        <p class="welcome-message" id="welcomeMessage">Organize your day with ease</p>
+        <span class="current-date" id="currentDateBadge" aria-label="Current Date">Today</span>
+      </div>
+    </header>
+
+    <!-- Main Container Card -->
+    <main class="task-card">
+      <!-- Overview & Progress Widget -->
+      <section class="progress-section" aria-label="Task progress summary">
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-number" id="totalTasksCount">0</span>
+            <span class="stat-label">Total Tasks</span>
+          </div>
+          <div class="stat-item active-stat">
+            <span class="stat-number" id="activeTasksCount">0</span>
+            <span class="stat-label">Remaining</span>
+          </div>
+          <div class="stat-item completed-stat">
+            <span class="stat-number" id="completedTasksCount">0</span>
+            <span class="stat-label">Completed</span>
+          </div>
+        </div>
+
+        <div class="progress-bar-wrapper">
+          <div class="progress-info">
+            <span class="progress-label">Task Completion</span>
+            <span class="progress-percent" id="progressPercentage">0%</span>
+          </div>
+          <div class="progress-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="progressBarTrack" aria-label="Completion progress">
+            <div class="progress-fill" id="progressBarFill" style="width: 0%;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Task Creation Form -->
+      <section class="task-input-section" aria-label="Add new task">
+        <form class="task-form" id="taskForm" autocomplete="off" novalidate>
+          <div class="input-wrapper">
+            <span class="input-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+              </svg>
+            </span>
+            <input 
+              type="text" 
+              id="taskInput" 
+              class="task-input" 
+              placeholder="What do you need to accomplish today?" 
+              maxlength="150"
+              aria-label="New task description"
+              required
+            >
+            <button type="button" class="btn-clear-input" id="clearInputBtn" aria-label="Clear input text" title="Clear text">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          
+          <button type="submit" class="btn-add-task" id="addTaskBtn" aria-label="Add task">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Add Task</span>
+          </button>
+        </form>
+        <p class="input-feedback" id="inputFeedback" role="alert" aria-live="polite"></p>
+      </section>
+
+      <!-- Task Controls & Filters -->
+      <section class="task-toolbar" aria-label="Task filters and actions">
+        <div class="filter-group" role="tablist" aria-label="Filter tasks">
+          <button 
+            type="button" 
+            role="tab" 
+            class="filter-btn active" 
+            id="filterAll" 
+            data-filter="all" 
+            aria-selected="true"
+            aria-controls="taskList"
+          >
+            All <span class="badge" id="badgeAll">0</span>
+          </button>
+          <button 
+            type="button" 
+            role="tab" 
+            class="filter-btn" 
+            id="filterActive" 
+            data-filter="active" 
+            aria-selected="false"
+            aria-controls="taskList"
+          >
+            Active <span class="badge" id="badgeActive">0</span>
+          </button>
+          <button 
+            type="button" 
+            role="tab" 
+            class="filter-btn" 
+            id="filterCompleted" 
+            data-filter="completed" 
+            aria-selected="false"
+            aria-controls="taskList"
+          >
+            Completed <span class="badge" id="badgeCompleted">0</span>
+          </button>
+        </div>
+
+        <div class="toolbar-actions">
+          <button 
+            type="button" 
+            class="btn-clear-completed" 
+            id="clearCompletedBtn" 
+            title="Remove all completed tasks"
+            disabled
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>Clear Completed</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Tasks List -->
+      <section class="task-list-section" aria-label="Task list">
+        <ul class="task-list" id="taskList" role="list" aria-live="polite">
+          <!-- Dynamically populated via script.js -->
+        </ul>
+
+        <!-- Empty State Container -->
+        <div class="empty-state" id="emptyState" style="display: none;">
+          <div class="empty-icon-wrap" aria-hidden="true" id="emptyIcon">
+            <!-- Dynamic SVG icon -->
+          </div>
+          <h2 class="empty-title" id="emptyTitle">No tasks yet</h2>
+          <p class="empty-subtitle" id="emptySubtitle">Add your first task above to start your productive day!</p>
+        </div>
+      </section>
+
+      <!-- Footer Info Bar -->
+      <footer class="task-footer">
+        <div class="footer-hint">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span>Tip: Press <kbd>Enter</kbd> to add or save tasks, and <kbd>Esc</kbd> to cancel editing.</span>
+        </div>
+      </footer>
+    </main>
+
+    <!-- App Bottom Credits -->
+    <div class="app-credit">
+      <p>TaskMate &bull; Designed for simple, focused productivity &bull; Auto-saved locally</p>
+    </div>
+  </div>
+
+  <!-- Accessible Toast Notification for Micro-feedback -->
+  <div class="toast-container" id="toastContainer" aria-live="assertive" aria-atomic="true"></div>
+
+  <!-- JavaScript -->
+  <script src="script.js"></script>
+</body>
+</html>
